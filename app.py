@@ -12,7 +12,7 @@ myheading1='Predicting Mortgage Loan Approval'
 image1='ames_welcome.jpeg'
 tabtitle = 'Mortgage Loans'
 sourceurl = 'https://www.kaggle.com/burak3ergun/loan-data-set'
-githublink = 'https://github.com/plotly-dash-apps/504-mortgage-loans-predictor'
+githublink = 'https://github.com/amakarewycz/504-mortgage-loans-predictor'
 
 
 ########### Model featurse
@@ -23,35 +23,42 @@ features = ['Credit_History',
 'CoapplicantIncome',
  'Property_Area',
  'Gender',
+ 'Dependents',
  'Education',
   'Self_Employed'
  ]
 
-
+rlocation = "model_components/b"
 ########### open the pickle files ######
 # dataframes for visualization
-approved=pd.read_csv('model_components/approved_loans.csv')
-denied=pd.read_csv('model_components/denied_loans.csv')
+approved=pd.read_csv(f'{rlocation}/approved_loans.csv')
+denied=pd.read_csv(f'{rlocation}/denied_loans.csv')
 # random forest model
-filename = open('model_components/loan_approval_rf_model.pkl', 'rb')
+filename = open(f'{rlocation}/loan_approval_rf_model.pkl', 'rb')
 rf = pickle.load(filename)
 filename.close()
 # encoder1
-filename = open('model_components/loan_approval_onehot_encoder.pkl', 'rb')
+filename = open(f'{rlocation}/loan_approval_onehot_encoder.pkl', 'rb')
 encoder1 = pickle.load(filename)
 filename.close()
 # ss_scaler1: monthly_return
-filename = open('model_components/loan_approval_ss_scaler1.pkl', 'rb')
+filename = open(f'{rlocation}/loan_approval_ss_scaler1.pkl', 'rb')
 ss_scaler1 = pickle.load(filename)
 filename.close()
 # ss_scaler2: ln_total_income
-filename = open('model_components/loan_approval_total_income.pkl', 'rb')
+filename = open(f'{rlocation}/loan_approval_total_income.pkl', 'rb')
 ss_scaler2 = pickle.load(filename)
 filename.close()
 # ss_scaler3: loan_amount
-filename = open('model_components/loan_approval_loan_amount.pkl', 'rb')
+filename = open(f'{rlocation}/loan_approval_loan_amount.pkl', 'rb')
 ss_scaler3 = pickle.load(filename)
 filename.close()
+# lr: loan_amount
+filename = open(f'{rlocation}/loan_approval_lr_model.pkl', 'rb')
+lr = pickle.load(filename)
+filename.close()
+
+
 
 
 ####### FUNCTIONS #######
@@ -65,13 +72,15 @@ def make_predictions(listofargs, Threshold):
 
         # convert arguments from integers to floats:
         for var in ['Credit_History', 'LoanAmount', 'Loan_Amount_Term', 'ApplicantIncome', 'CoapplicantIncome']:
-            df[var]=int(df[var])
+            df[var]=int(df[var]) #todo <--- does this convert inte to float?
 
         # recode a few columns using the same steps we employed on the training data
         df['Gender'].replace({'Male': 1, 'Female': 0}, inplace = True)
         df['Education'].replace({'Graduate': 1, 'Not Graduate': 0}, inplace = True)
         df['Self_Employed'].replace({'Yes': 1, 'No': 0}, inplace = True)
         df['LoanAmount'] = df['LoanAmount']*1000
+        df['Dependents'].replace({'3+':3,'2':2, '1':1, '0': 0}, inplace =True)
+
 
         # transform the categorical variable using the same encoder we trained previously
         ohe=pd.DataFrame(encoder1.transform(df[['Property_Area']]).toarray())
@@ -88,11 +97,11 @@ def make_predictions(listofargs, Threshold):
         df['ln_LoanAmount'] = ss_scaler3.transform(np.array(ln_LoanAmount_raw).reshape(-1, 1))
 
         # drop & rearrange the columns in the order expected by your trained model!
-        df=df[['Gender', 'Education', 'Self_Employed', 'Credit_History',
+        df=df[['Gender', 'Dependents', 'Education', 'Self_Employed', 'Credit_History',
            'Property_Area_Semiurban', 'Property_Area_Urban', 'Property_Area_Rural', 'ln_monthly_return',
            'ln_total_income', 'ln_LoanAmount']]
 
-        prob = rf.predict_proba(df)
+        prob = lr.predict_proba(df)
         raw_approval_prob=prob[0][1]
         Threshold=Threshold*.01
         approval_func = lambda y: 'Approved' if raw_approval_prob>Threshold else 'Denied'
@@ -107,7 +116,7 @@ def make_predictions(listofargs, Threshold):
 
 ## FUNCTION FOR VISUALIZATION
 def make_loans_cube(*args):
-    newdata=pd.DataFrame([args[:9]], columns=features)
+    newdata=pd.DataFrame([args[:10]], columns=features)
     newdata['Combined_Income']=newdata['ApplicantIncome'] + newdata['CoapplicantIncome']
 
     trace0=go.Scatter3d(
@@ -122,7 +131,8 @@ def make_loans_cube(*args):
             ["<br>Property Area: {}".format(x) for x in approved['Property_Area']],
             ["<br>Gender: {}".format(x) for x in approved['Gender']],
             ["<br>Education: {}".format(x) for x in approved['Education']],
-            ["<br>Self-Employed: {}".format(x) for x in approved['Self_Employed']]
+            ["<br>Self-Employed: {}".format(x) for x in approved['Self_Employed']],
+            ["<br>Dependents: {}".format(x) for x in approved['Dependents']]
                 )) ,
         hovertemplate =
             '<b>Loan Amount: $%{x:.0f}K</b>'+
@@ -144,7 +154,8 @@ def make_loans_cube(*args):
             ["<br>Property Area: {}".format(x) for x in denied['Property_Area']],
             ["<br>Gender: {}".format(x) for x in denied['Gender']],
             ["<br>Education: {}".format(x) for x in denied['Education']],
-            ["<br>Self-Employed: {}".format(x) for x in denied['Self_Employed']]
+            ["<br>Self-Employed: {}".format(x) for x in denied['Self_Employed']],
+            ["<br>Dependents: {}".format(x) for x in denied['Dependents']]            
                 )) ,
         hovertemplate =
             '<b>Loan Amount: $%{x:.0f}K</b>'+
@@ -166,7 +177,8 @@ def make_loans_cube(*args):
             ["<br>Property Area: {}".format(x) for x in newdata['Property_Area']],
             ["<br>Gender: {}".format(x) for x in newdata['Gender']],
             ["<br>Education: {}".format(x) for x in newdata['Education']],
-            ["<br>Self-Employed: {}".format(x) for x in newdata['Self_Employed']]
+            ["<br>Self-Employed: {}".format(x) for x in newdata['Self_Employed']],
+            ["<br>Dependents: {}".format(x) for x in newdata['Dependents']]            
                 )) ,
         hovertemplate =
             '<b>Loan Amount: $%{x:.0f}K</b>'+
@@ -225,6 +237,10 @@ app.layout = html.Div(children=[
                 dcc.Dropdown(id='Gender',
                     options=[{'label': i, 'value': i} for i in ['Male', 'Female']],
                     value='Female'),
+                html.Div('Dependents'),
+                dcc.Dropdown(id='Dependents',
+                    options=[{'label': i, 'value': i} for i in ['0', '1', '2', '3+']],
+                    value='1'),
                 html.Div('Education'),
                 dcc.Dropdown(id='Education',
                     options=[{'label': i, 'value': i} for i in ['Graduate', 'Not Graduate']],
@@ -280,6 +296,7 @@ app.layout = html.Div(children=[
      State(component_id='CoapplicantIncome', component_property='value'),
      State(component_id='Property_Area', component_property='value'),
      State(component_id='Gender', component_property='value'),
+     State(component_id='Dependents', component_property='value'),
      State(component_id='Education', component_property='value'),
      State(component_id='Self_Employed', component_property='value'),
      State(component_id='Threshold', component_property='value'),
@@ -287,8 +304,8 @@ app.layout = html.Div(children=[
      Input(component_id='submit-val', component_property='n_clicks'),
     )
 def func(*args):
-    listofargs=[arg for arg in args[:9]]
-    return make_predictions(listofargs, args[9])
+    listofargs=[arg for arg in args[:10]]
+    return make_predictions(listofargs, args[10])
 
 
 ######### Define Callback: Visualization
@@ -303,6 +320,7 @@ def func(*args):
             State(component_id='CoapplicantIncome', component_property='value'),
             State(component_id='Property_Area', component_property='value'),
             State(component_id='Gender', component_property='value'),
+            State(component_id='Dependents', component_property='value'),
             State(component_id='Education', component_property='value'),
             State(component_id='Self_Employed', component_property='value'),
 
